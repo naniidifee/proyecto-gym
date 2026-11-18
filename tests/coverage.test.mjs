@@ -1,0 +1,67 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+const read=(f)=>fs.readFileSync(new URL('../'+f,import.meta.url),'utf8')
+
+test('administración tiene la pantalla de gestión de personal y SQL autorizador',()=>{
+  const ui=read('src/main.jsx');const pages=read('supabase/02_pages.sql');const actions=read('supabase/03_actions.sql')
+  assert.match(ui,/\['\/staff','♧','Gestión de personal'\]/)
+  assert.match(ui,/function Staff\(\)/)
+  assert.match(pages,/p_path='\/staff'[\s\S]*v\.role<>'admin'/)
+  assert.match(actions,/p_action ~ '\^\/staff\/[\s\S]*v\.role<>'admin'/)
+  assert.match(actions,/role='recepcion'/)
+})
+test('cuenta del socio disponible desde recepción pero no da privilegios para gestionar membresías',()=>{
+  const pages=read('supabase/02_pages.sql');const actions=read('supabase/03_actions.sql');const ui=read('src/main.jsx')
+  assert.match(pages,/p_path ~ '\^\/members\/\[0-9\]\+\/account\$'[\s\S]*v\.role<>'recepcion'/)
+  assert.match(ui,/function MemberAccount\(\)/)
+  assert.ok(actions.includes("p_action='/members/new'"))
+  assert.match(actions, /Utiliza el formulario de recepción actualizado/)
+  assert.match(actions,/p_action ~ '\^\/members\/\[0-9\]\+\/membership\$'[\s\S]*v\.role<>'admin'/)
+})
+test('CU08: la ficha y contraseña se crean juntas; para cuentas antiguas conserva invitación',()=>{
+  const pages=read('supabase/02_pages.sql'),api=read('api/register-member.js'),ui=read('src/main.jsx'),frontend=read('src/lib/supabase.js')
+  assert.match(ui,/function RegisterMember\(\)/)
+  assert.match(ui,/Se genera automáticamente al guardar/)
+  assert.match(ui,/name="password"/)
+  assert.match(frontend,/\/api\/register-member/)
+  assert.match(api,/auth\.admin\.createUser\(/)
+  assert.match(api,/role: 'socio'/)
+  assert.match(api,/\/members\/\$\{memberId\}\/account/)
+  assert.match(pages,/Código automático y cuenta de acceso/)
+  assert.match(read('api/create-member-account.js'),/inviteUserByEmail/)
+  assert.match(read('supabase/06_registro_socios_automatico.sql'),/before insert on public\.members/)
+})
+test('migración mantiene historial y cambia deduplicación de acceso por evento',()=>{
+  const schema=read('supabase/01_schema.sql'),migration=read('supabase/05_actualizacion_instalacion_existente.sql'),actions=read('supabase/03_actions.sql')
+  assert.doesNotMatch(schema,/unique\(member_id,access_date\)/)
+  assert.match(migration,/drop constraint if exists attendance_member_id_access_date_key/)
+  assert.match(actions,/interval '5 minutes'/)
+  assert.match(actions,/advisory_xact_lock\(98762/)
+})
+test('la reserva serializa las solicitudes concurrentes del mismo socio',()=>{
+  const sql=read('supabase/03_actions.sql')
+  assert.match(sql,/advisory_xact_lock\(98761/)
+  assert.match(sql,/select \* into c from public\.classes where id=v_cid for update/)
+  assert.ok(sql.includes('where member_id=v_mid and class_id=v_cid for update'))
+})
+test('mantenimiento pendiente puede editarse y registra cambio en auditoría',()=>{
+  const sql=read('supabase/03_actions.sql'),ui=read('src/main.jsx')
+  assert.match(sql,/maintenance\/\[0-9\]\+\/update/)
+  assert.match(sql,/Solo se pueden editar mantenciones pendientes/)
+  assert.match(sql,/'ACTUALIZAR','maintenance'/)
+  assert.match(ui,/Marcar completado/)
+})
+test('el diseño base sigue usando las mismas clases y el mismo tema',()=>{
+  const css=read('src/style.css')
+  assert.match(css,/--lime:#ccf54f/)
+  assert.match(css,/\.sidebar\{/)
+  assert.match(css,/\.panel\{/)
+  assert.match(css,/\.login-grid\{/)
+})
+test('renovar a futuro no corta una membresía actualmente vigente',()=>{
+  const schema=read('supabase/01_schema.sql'),migr=read('supabase/05_actualizacion_instalacion_existente.sql')
+  assert.match(schema,/select exists\(select 1 from public\.memberships mb/)
+  assert.match(schema,/mb\.starts_on <=/)
+  assert.match(migr,/create or replace function private\.member_allowed/)
+})
