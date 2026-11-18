@@ -1,9 +1,5 @@
 # GymControl — React 19 + Vite + Supabase + Vercel
 
-Versión revisada contra **Informe Ev.II**, **Entrevista al dueño simulado** y **Especificaciones CU (CU01–CU16)**. Conserva el estilo visual oscuro/verde lima, la estructura general y las pantallas originales. Añade la creación directa de cuentas de recepcionistas y socios, los códigos de socio automáticos, alertas visibles de vencimiento y consistencia de entradas/reservas.
-
-> **Importante:** el código está preparado, pero **no se ha probado con tu proyecto real de Supabase ni se ha desplegado en tu Vercel**. No cargues información personal real hasta completar las pruebas funcionales y de seguridad. Consulta `AUDITORIA_CASOS_DE_USO.md` para saber exactamente qué está cubierto y qué sigue pendiente.
-
 ## Requisitos
 
 - Node.js 20.19+ con npm, Visual Studio Code u otro editor.
